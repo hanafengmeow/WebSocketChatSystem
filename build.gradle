@@ -1,0 +1,130 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'edu.northeastern.hanafeng.chatsystem'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework:spring-messaging'
+    implementation 'org.springframework:spring-websocket'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+    implementation 'org.knowm.xchart:xchart:3.8.5'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    implementation 'software.amazon.awssdk:cloudwatch:2.20.0'
+    implementation 'software.amazon.awssdk:sqs:2.20.0'
+    implementation 'software.amazon.awssdk:dynamodb:2.20.0'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('cdk-test', Exec) {
+    workingDir 'cdk'
+    commandLine 'npm', 'run', 'test'
+    description = 'Run CDK Jest tests'
+    group = 'verification'
+}
+
+tasks.register('cdk-build', Exec) {
+    dependsOn 'cdk-test'
+    workingDir 'cdk'
+    commandLine 'npm', 'run', 'build'
+    description = 'Build CDK TypeScript project'
+    group = 'build'
+}
+
+tasks.register('cdk-synth', Exec) {
+    dependsOn 'build', 'cdk-build'
+    workingDir 'cdk'
+    commandLine 'cdk', 'synth'
+    description = 'Synthesize CDK stack to CloudFormation template'
+    group = 'verification'
+}
+
+tasks.register('cdk-bootstrap', Exec) {
+    workingDir 'cdk'
+    commandLine 'cdk', 'bootstrap'
+    description = 'Bootstrap CDK (first time setup)'
+    group = 'deployment'
+}
+
+tasks.register('cdk-deploy', Exec) {
+    dependsOn 'cdk-synth'
+    workingDir 'cdk'
+    commandLine 'cdk', 'deploy', '--require-approval', 'never'
+    description = 'Deploy application to AWS using CDK'
+    group = 'deployment'
+}
+
+tasks.register('cdk-destroy', Exec) {
+    workingDir 'cdk'
+    commandLine 'cdk', 'destroy', '--force'
+    description = 'Destroy AWS resources deployed by CDK'
+    group = 'deployment'
+}
+
+tasks.register('cdk-redeploy') {
+    dependsOn 'cdk-destroy', 'cdk-deploy'
+    description = 'Full redeployment: destroy then deploy (for user-data changes)'
+    group = 'deployment'
+
+    tasks.findByName('cdk-deploy').mustRunAfter tasks.findByName('cdk-destroy')
+}
+
+tasks.register('npm-clean', Exec) {
+    workingDir 'cdk'
+    commandLine 'npm', 'run', 'clean'
+    ignoreExitValue = true
+    description = 'Clean NPM artifacts'
+    group = 'build'
+}
+
+tasks.register('cdk-clean', Exec) {
+    workingDir 'cdk'
+    commandLine 'cdk', 'context', '--clear'
+    ignoreExitValue = true
+    description = 'Clean CDK context cache'
+    group = 'build'
+}
+
+tasks.register('clean-all') {
+    dependsOn 'clean', 'npm-clean', 'cdk-clean'
+    description = 'Clean all build artifacts including Java, NPM, and CDK'
+    group = 'build'
+
+    doLast {
+        // Clean additional artifacts that npm/cdk commands might not remove
+        delete "${projectDir}/cdk/node_modules"
+        delete "${projectDir}/cdk/cdk.out"
+        delete "${projectDir}/.gradle"
+
+        println "Cleaned all build artifacts (Java, NPM, CDK)"
+    }
+}
