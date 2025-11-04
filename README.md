@@ -206,7 +206,7 @@ cdk synth         # Generate CloudFormation template
 
 ## Documentation
 
-For detailed architecture, design decisions, and test results, see [WIKI.md](./WIKI.md).
+For detailed architecture, design decisions, and test results, see **Wiki**
 
 ## License
 
